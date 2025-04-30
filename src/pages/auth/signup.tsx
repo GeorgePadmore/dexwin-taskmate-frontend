@@ -3,28 +3,54 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Mail, Lock, User } from 'lucide-react'
+import authService from '@/services/auth'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    // TODO: Implement signup functionality
-    console.log('Signup:', { fullName, email, password })
+    setError('')
+    setSuccess('')
+    setIsLoading(true)
+    try {
+      const response = await authService.signup({ fullName, email, password })
+      if (response.success) {
+        setSuccess('Registration successful! Please check your email to verify your account.')
+        setFullName('')
+        setEmail('')
+        setPassword('')
+      } else {
+        setError(response.response_desc)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleFullNameChange = (e: ChangeEvent<HTMLInputElement>) => {
     setFullName(e.target.value)
+    if (error) setError('')
+    if (success) setSuccess('')
   }
 
   const handleEmailChange = (e: ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value)
+    if (error) setError('')
+    if (success) setSuccess('')
   }
 
   const handlePasswordChange = (e: ChangeEvent<HTMLInputElement>) => {
     setPassword(e.target.value)
+    if (error) setError('')
+    if (success) setSuccess('')
   }
 
   return (
@@ -38,6 +64,12 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">{error}</div>
+          )}
+          {success && (
+            <div className="p-3 text-sm text-green-600 bg-green-50 rounded-md">{success}</div>
+          )}
           <div className="space-y-1.5">
             <label htmlFor="fullName" className="text-[16px] font-medium text-[#1C1E21] block">
               Full Name
@@ -52,6 +84,7 @@ export default function SignupPage() {
                 placeholder="John Doe"
                 required
                 className="w-full h-12 pl-10 pr-3 text-[16px] rounded-[8px] border border-[#E5E7EB] bg-white placeholder:text-[#9CA3AF] focus:border-[#4461F2] focus:ring-1 focus:ring-[#4461F2]"
+                disabled={isLoading}
               />
             </div>
           </div>
@@ -70,6 +103,7 @@ export default function SignupPage() {
                 placeholder="you@example.com"
                 required
                 className="w-full h-12 pl-10 pr-3 text-[16px] rounded-[8px] border border-[#E5E7EB] bg-white placeholder:text-[#9CA3AF] focus:border-[#4461F2] focus:ring-1 focus:ring-[#4461F2]"
+                disabled={isLoading}
               />
             </div>
           </div>
@@ -87,6 +121,7 @@ export default function SignupPage() {
                 onChange={handlePasswordChange}
                 required
                 className="w-full h-12 pl-10 pr-3 text-[16px] rounded-[8px] border border-[#E5E7EB] bg-white focus:border-[#4461F2] focus:ring-1 focus:ring-[#4461F2]"
+                disabled={isLoading}
               />
             </div>
             <p className="text-[14px] text-[#6B7280] mt-1">
@@ -97,9 +132,10 @@ export default function SignupPage() {
           <Button
             type="submit"
             className="w-full h-12 bg-[#4461F2] hover:bg-[#2941dc] text-white text-[16px] font-medium rounded-[8px] flex items-center justify-center gap-2"
+            disabled={isLoading}
           >
             <span className="i-lucide-user-plus text-xl" />
-            Sign Up
+            {isLoading ? 'Signing up...' : 'Sign Up'}
           </Button>
 
           <div className="text-center text-[16px] text-[#6B7280]">

@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import LoginPage from './pages/auth/login'
 import SignupPage from './pages/auth/signup'
 import DashboardPage from './pages/dashboard'
+import VerifyEmailPage from './pages/auth/verify-email'
 import { TaskProvider } from '@/store/TaskContext'
 import { AuthProvider, useAuth } from '@/store/AuthContext'
 import { ThemeProvider } from '@/store/ThemeContext'
@@ -39,6 +40,16 @@ function AppRoutes() {
               <DashboardPage />
             ) : (
               <Navigate to="/login" replace />
+            )
+          } 
+        />
+        <Route 
+          path="/verify-email" 
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <VerifyEmailPage />
             )
           } 
         />

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
-import { Task, TaskStatus, Category, Priority } from '@/types/task'
+import { Task } from '@/types/task'
 
 interface TaskContextType {
   tasks: Task[]

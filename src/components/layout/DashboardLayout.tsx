@@ -9,8 +9,16 @@ interface DashboardLayoutProps {
   children: React.ReactNode
 }
 
+// Helper to get initials from full name
+const getInitials = (fullName: string) => {
+  if (!fullName) return ''
+  const names = fullName.trim().split(' ')
+  if (names.length === 1) return names[0][0].toUpperCase()
+  return (names[0][0] + names[names.length - 1][0]).toUpperCase()
+}
+
 export function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { logout } = useAuth()
+  const { logout, isAuthenticated, user } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
@@ -49,13 +57,23 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               Logout
             </Button>
-            <Button
-              size="sm"
-              asChild
-              className="bg-[#4461F2] hover:bg-[#2941dc] text-white rounded-full px-4"
-            >
-              <Link to="/signup">Sign Up</Link>
-            </Button>
+            {!isAuthenticated ? (
+              <Button
+                size="sm"
+                asChild
+                className="bg-[#4461F2] hover:bg-[#2941dc] text-white rounded-full px-4"
+              >
+                <Link to="/signup">Sign Up</Link>
+              </Button>
+            ) : user ? (
+              <div
+                className="flex items-center justify-center w-10 h-10 rounded-full bg-[#4461F2] text-white font-bold text-lg select-none"
+                title={user.fullName}
+                aria-label={user.fullName}
+              >
+                {getInitials(user.fullName)}
+              </div>
+            ) : null}
           </div>
         </div>
       </header>

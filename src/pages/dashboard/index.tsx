@@ -1,15 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Plus, Filter } from 'lucide-react'
 import { Task as TaskComponent } from '@/components/Task'
 import { TaskDialog } from '@/components/TaskDialog'
-import { useTaskContext } from '@/store/TaskContext'
 import { Task, TaskStatus } from '@/types/task'
+import todosService, { Todo, Category, Priority, AddTodoRequest } from '@/services/todos'
 
 export default function DashboardPage() {
-  const { tasks, deleteTask, toggleTaskComplete } = useTaskContext()
+  const [todos, setTodos] = useState<Todo[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [priorities, setPriorities] = useState<Priority[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [loadingMeta, setLoadingMeta] = useState(true)
+  const [errorMeta, setErrorMeta] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [status, setStatus] = useState<TaskStatus>('all')
   const [category, setCategory] = useState('')
@@ -19,33 +25,84 @@ export default function DashboardPage() {
   const [editingTask, setEditingTask] = useState<Task | undefined>()
   const [showFilters, setShowFilters] = useState(false)
 
-  const filteredTasks = tasks
-    .filter(task => {
-      const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        task.description.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchesStatus = status === 'all' || 
-        (status === 'completed' ? task.completed : !task.completed)
-      const matchesCategory = !category || task.category === category
+  useEffect(() => {
+    setLoading(true)
+    todosService.getTodos()
+      .then((todosRes) => {
+        if (todosRes.success) setTodos(todosRes.data)
+        else setError(todosRes.response_desc)
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Failed to fetch todos.')
+      })
+      .finally(() => setLoading(false))
+  }, [])
 
-      return matchesSearch && matchesStatus && matchesCategory
-    })
-    .sort((a, b) => {
-      const aValue = a[sortBy]
-      const bValue = b[sortBy]
-      const modifier = sortDirection === 'ascending' ? 1 : -1
+  useEffect(() => {
+    setLoadingMeta(true)
+    Promise.all([
+      todosService.getCategories(),
+      todosService.getPriorities()
+    ])
+      .then(([catRes, priRes]) => {
+        if (catRes.success) setCategories(catRes.data)
+        else setErrorMeta(catRes.response_desc)
+        if (priRes.success) setPriorities(priRes.data)
+        else setErrorMeta(priRes.response_desc)
+      })
+      .catch((err) => {
+        setErrorMeta(err instanceof Error ? err.message : 'Failed to fetch categories/priorities.')
+      })
+      .finally(() => setLoadingMeta(false))
+  }, [])
 
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return aValue.localeCompare(bValue) * modifier
-      }
-      if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {
-        return (aValue === bValue ? 0 : aValue ? 1 : -1) * modifier
-      }
-      return 0
-    })
+  const filteredTodos = todos.filter(todo =>
+    todo.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    todo.description.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  // Map API todos to include a 'completed' property for TaskComponent compatibility
+  const mappedTodos = filteredTodos.map(todo => ({
+    ...todo,
+    completed: todo.status !== 'A',
+    category: todo.category?.name || '',
+    priority: (() => {
+      const p = todo.priority?.name?.toLowerCase();
+      if (p === 'high' || p === 'medium' || p === 'low') return p as 'high' | 'medium' | 'low';
+      return 'low';
+    })(),
+  }))
 
   const handleEditTask = (task: Task) => {
     setEditingTask(task)
   }
+
+  const handleAdd = async (data: AddTodoRequest) => {
+    const res = await todosService.addTodo(data)
+    if (res.success) setTodos(prev => [res.data, ...prev])
+    else throw new Error(res.response_desc)
+  }
+
+  const handleEdit = async (id: string, data: AddTodoRequest) => {
+    const res = await todosService.editTodo(id, data)
+    if (res.success) setTodos(prev => prev.map(t => t.id === id ? res.data : t))
+    else throw new Error(res.response_desc)
+  }
+
+  const handleDelete = async (id: string) => {
+    const res = await todosService.deleteTodo(id)
+    if (res.success) setTodos(prev => prev.filter(t => t.id !== id))
+    else throw new Error(res.response_desc)
+  }
+
+  const handleToggleComplete = async (id: string) => {
+    const res = await todosService.toggleTodoStatus(id)
+    if (res.success) setTodos(prev => prev.map(t => t.id === id ? res.data : t))
+    else throw new Error(res.response_desc)
+  }
+
+  // Only allow opening TaskDialog when meta is loaded
+  const canOpenDialog = !loadingMeta && !errorMeta && categories.length > 0 && priorities.length > 0
 
   return (
     <DashboardLayout>
@@ -185,40 +242,44 @@ export default function DashboardPage() {
         )}
 
         <div className="space-y-4">
-          {filteredTasks.length > 0 ? (
-            filteredTasks.map((task) => (
-              <TaskComponent
-                key={task.id}
-                {...task}
-                onEdit={() => handleEditTask(task)}
-                onDelete={deleteTask}
-                onToggleComplete={toggleTaskComplete}
-              />
-            ))
-          ) : (
+          {loading ? (
+            <div className="text-center text-[#4461F2]">Loading tasks...</div>
+          ) : error ? (
+            <div className="text-center text-red-500">{error}</div>
+          ) : mappedTodos.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-none border border-[#E5E7EB] dark:border-gray-700 p-8 text-center">
               <h2 className="text-[24px] font-semibold text-[#1C1E21] dark:text-white mb-2">No tasks found</h2>
-              <p className="text-[16px] text-[#6B7280] dark:text-gray-400">
-                You don't have any tasks matching your current filters.
-              </p>
-              <Button
-                className="mt-6 bg-[#4461F2] hover:bg-[#2941dc] text-white rounded-[8px] h-12 px-6 flex items-center gap-2 mx-auto"
-                onClick={() => setIsAddTaskOpen(true)}
-              >
-                <Plus className="w-5 h-5" />
-                Create a new task
+              <p className="text-[#6B7280] dark:text-gray-400 text-[16px]">You don't have any tasks matching your current filters.</p>
+              <Button className="mt-6 bg-[#4461F2] hover:bg-[#2941dc] text-white rounded-full px-6 py-3 text-lg font-medium">
+                + Create a new task
               </Button>
             </div>
+          ) : (
+            mappedTodos.map((todo) => (
+              <TaskComponent
+                key={todo.id}
+                {...todo}
+                onEdit={() => handleEditTask(todo as Task)}
+                onDelete={handleDelete}
+                onToggleComplete={handleToggleComplete}
+              />
+            ))
           )}
         </div>
 
         <TaskDialog
-          open={isAddTaskOpen || !!editingTask}
+          open={canOpenDialog && (isAddTaskOpen || !!editingTask)}
           onOpenChange={(open) => {
             setIsAddTaskOpen(open)
             if (!open) setEditingTask(undefined)
           }}
           task={editingTask}
+          categories={categories}
+          priorities={priorities}
+          loadingMeta={loadingMeta}
+          errorMeta={errorMeta}
+          onAdd={handleAdd}
+          onEdit={handleEdit}
         />
       </div>
     </DashboardLayout>
